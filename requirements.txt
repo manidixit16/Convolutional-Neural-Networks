@@ -6,3 +6,6 @@ seaborn
 pandas
 jupyter
 nbconvert
+# For generating REPORT.pdf from REPORT.md (make_report_pdf.py)
+markdown
+playwright
