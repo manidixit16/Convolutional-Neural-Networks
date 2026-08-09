@@ -2,21 +2,34 @@
   "shallow": {
     "conv_layers": 1,
     "params": 693962,
-    "train_acc": 0.9634259343147278,
-    "val_acc": 0.9106666445732117,
-    "test_acc": 0.907800018787384,
-    "gap": 0.05275928974151611,
+    "epochs_trained": 25,
+    "train_acc": 0.9678333401679993,
+    "val_acc": 0.9259999990463257,
+    "test_acc": 0.921999990940094,
+    "gap": 0.041833341121673584,
     "overfitting": "Yes",
-    "train_time_s": 71.16836881637573
+    "train_time_s": 60.250868797302246
   },
   "deep": {
     "conv_layers": 3,
     "params": 1701770,
-    "train_acc": 0.9300740957260132,
-    "val_acc": 0.9350000023841858,
-    "test_acc": 0.9283000230789185,
-    "gap": -0.004925906658172607,
+    "epochs_trained": 20,
+    "train_acc": 0.9494073987007141,
+    "val_acc": 0.9465000033378601,
+    "test_acc": 0.9340999722480774,
+    "gap": 0.002907395362854004,
     "overfitting": "No",
-    "train_time_s": 584.4545516967773
+    "train_time_s": 695.8358724117279
+  },
+  "deep_aug": {
+    "conv_layers": 3,
+    "params": 1701770,
+    "epochs_trained": 35,
+    "train_acc": 0.9179815053939819,
+    "val_acc": 0.9323333501815796,
+    "test_acc": 0.920199990272522,
+    "gap": -0.014351844787597656,
+    "overfitting": "No",
+    "train_time_s": 1244.1041605472565
   }
 }
