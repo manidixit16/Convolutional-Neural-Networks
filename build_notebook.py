@@ -1,6 +1,6 @@
 """Builder that assembles the Fashion-MNIST Shallow vs Deep CNN notebook.
 
-Run this file to (re)generate `Fashion_MNIST_Shallow_vs_Deep_CNN.ipynb`.
+Run this file to (re)generate `Fashion_MNIST_Comparative_Study_Mani_PGDSAI3.ipynb`.
 The notebook is then executed separately with `jupyter nbconvert --execute`
 so that all outputs (plots, tables, accuracies) are embedded. Executing it also
 writes every figure to the `figures/` folder and the headline metrics to
@@ -936,6 +936,6 @@ nb['metadata'] = {
     "language_info": {"name": "python", "version": "3.11"},
 }
 
-with open("Fashion_MNIST_Shallow_vs_Deep_CNN.ipynb", "w") as f:
+with open("Fashion_MNIST_Comparative_Study_Mani_PGDSAI3.ipynb", "w") as f:
     nbf.write(nb, f)
 print("Notebook written with", len(cells), "cells.")
