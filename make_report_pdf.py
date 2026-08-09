@@ -1,10 +1,14 @@
-"""Render REPORT.md to a styled REPORT.pdf.
+"""Render REPORT.md to a styled REPORT.pdf, with graphs embedded.
 
-Converts the Markdown report to HTML (with tables + basic typographic styling)
-and prints it to PDF using the pre-installed Chromium via Playwright.
+Converts the Markdown report to HTML (tables + images + typographic styling),
+inlines every local image as a base64 data URI (so the sandboxed browser can
+render them), and prints to PDF using the pre-installed Chromium via Playwright.
 """
 import os
+import re
 import glob
+import base64
+import mimetypes
 import markdown
 from playwright.sync_api import sync_playwright
 
@@ -12,7 +16,7 @@ SRC = "REPORT.md"
 OUT = "REPORT.pdf"
 
 CSS = """
-@page { size: A4; margin: 20mm 18mm; }
+@page { size: A4; margin: 18mm 16mm; }
 * { box-sizing: border-box; }
 body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
        font-size: 12px; line-height: 1.55; color: #1a1a1a; }
@@ -27,7 +31,25 @@ code { background: #edf2f7; padding: 1px 4px; border-radius: 3px; font-size: 11p
 strong { color: #1a202c; }
 em { color: #4a5568; }
 ul { margin: 6px 0; }
+img { max-width: 100%; height: auto; display: block; margin: 12px auto;
+      border: 1px solid #e2e8f0; border-radius: 4px; }
+figure { margin: 14px 0; }
+figcaption { font-size: 10.5px; color: #4a5568; font-style: italic; text-align: center; margin-top: 4px; }
 """
+
+
+def inline_images(html):
+    """Replace <img src="local/path"> with base64 data URIs."""
+    def repl(m):
+        src = m.group(1)
+        if src.startswith("data:") or src.startswith("http"):
+            return m.group(0)
+        if not os.path.exists(src):
+            return m.group(0)
+        mime = mimetypes.guess_type(src)[0] or "image/png"
+        data = base64.b64encode(open(src, "rb").read()).decode()
+        return m.group(0).replace(src, f"data:{mime};base64,{data}")
+    return re.sub(r'<img[^>]*\ssrc="([^"]+)"', repl, html)
 
 
 def find_chrome():
@@ -42,7 +64,8 @@ def find_chrome():
 def main():
     with open(SRC) as f:
         md_text = f.read()
-    html_body = markdown.markdown(md_text, extensions=["tables", "fenced_code", "sane_lists"])
+    html_body = markdown.markdown(md_text, extensions=["tables", "fenced_code", "sane_lists", "attr_list"])
+    html_body = inline_images(html_body)
     html = f"<!doctype html><html><head><meta charset='utf-8'><style>{CSS}</style></head><body>{html_body}</body></html>"
 
     chrome = find_chrome()
