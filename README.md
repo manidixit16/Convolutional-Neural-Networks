@@ -11,14 +11,14 @@ augmentation to the deep CNN.
 
 | File | Description |
 |------|-------------|
-| `Fashion_MNIST_Shallow_vs_Deep_CNN.ipynb` | Main deliverable — a fully executed notebook covering all six parts, with a *"what this graph shows"* explanation after every figure. Outputs embedded. |
-| `REPORT.md` | Comparative report **with the graphs embedded** and expanded explanations. |
-| `REPORT.pdf` | PDF version of the report (graphs included), ready to attach to a submission. |
-| `Assignment_Report.docx` | Comprehensive **Word report** — full write-up with graphs embedded, comparison table, and repository links. |
-| `figures/` | All plots saved as PNGs (used by the report and Word doc). |
+| `Fashion_MNIST_Comparative_Study_Mani_PGDSAI3.ipynb` | Main deliverable — a fully executed notebook covering all six parts, with a *"what this graph shows"* explanation after every figure. Outputs embedded. |
+| `Mani_Dixit_PGDSAI3_Fashion_MNIST_Report.docx` | Graded-assignment **Word report** (house style): title, metadata, overview, results-at-a-glance, per-part analysis with graphs embedded, and a final conclusion. |
+| `REPORT.md` | Markdown version of the comparative report, with graphs embedded. |
+| `REPORT.pdf` | PDF version of the report (graphs included). |
+| `figures/` | All plots saved as PNGs (used by the reports). |
 | `build_notebook.py` | Regenerates the notebook from source. |
 | `make_report_pdf.py` | Renders `REPORT.md` → `REPORT.pdf` (embeds the figures). |
-| `make_report_docx.js` | Builds `Assignment_Report.docx` from `figures/` + `results.json`. |
+| `make_submission_report.js` | Builds `Mani_Dixit_PGDSAI3_Fashion_MNIST_Report.docx` from `figures/` + `results.json`. |
 | `results.json` | Headline metrics produced by the executed notebook. |
 | `requirements.txt` | Python dependencies. |
 
@@ -57,11 +57,11 @@ pip install -r requirements.txt
 
 # Run the notebook (also writes figures/ and results.json)
 python build_notebook.py
-jupyter nbconvert --to notebook --execute --inplace Fashion_MNIST_Shallow_vs_Deep_CNN.ipynb
+jupyter nbconvert --to notebook --execute --inplace Fashion_MNIST_Comparative_Study_Mani_PGDSAI3.ipynb
 
 # Rebuild the reports
-python make_report_pdf.py            # REPORT.md -> REPORT.pdf (needs markdown, playwright)
-npm install docx && node make_report_docx.js   # -> Assignment_Report.docx
+python make_report_pdf.py                          # REPORT.md -> REPORT.pdf
+npm install docx && node make_submission_report.js # -> Mani_Dixit_PGDSAI3_Fashion_MNIST_Report.docx
 ```
 
 The Fashion-MNIST dataset is downloaded automatically by
