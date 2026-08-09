@@ -8,7 +8,7 @@
     "test_acc": 0.921999990940094,
     "gap": 0.041833341121673584,
     "overfitting": "Yes",
-    "train_time_s": 60.250868797302246
+    "train_time_s": 126.73943877220154
   },
   "deep": {
     "conv_layers": 3,
@@ -19,17 +19,17 @@
     "test_acc": 0.9340999722480774,
     "gap": 0.002907395362854004,
     "overfitting": "No",
-    "train_time_s": 695.8358724117279
+    "train_time_s": 1131.5562648773193
   },
   "deep_aug": {
     "conv_layers": 3,
     "params": 1701770,
-    "epochs_trained": 35,
-    "train_acc": 0.9179815053939819,
-    "val_acc": 0.9323333501815796,
-    "test_acc": 0.920199990272522,
-    "gap": -0.014351844787597656,
+    "epochs_trained": 26,
+    "train_acc": 0.9038888812065125,
+    "val_acc": 0.9291666746139526,
+    "test_acc": 0.9164000153541565,
+    "gap": -0.025277793407440186,
     "overfitting": "No",
-    "train_time_s": 1244.1041605472565
+    "train_time_s": 1526.646508693695
   }
 }

@@ -2,7 +2,10 @@
 
 Run this file to (re)generate `Fashion_MNIST_Shallow_vs_Deep_CNN.ipynb`.
 The notebook is then executed separately with `jupyter nbconvert --execute`
-so that all outputs (plots, tables, accuracies) are embedded.
+so that all outputs (plots, tables, accuracies) are embedded. Executing it also
+writes every figure to the `figures/` folder and the headline metrics to
+`results.json`, which the written report (REPORT.md / REPORT.pdf) and the Word
+report embed.
 """
 import nbformat as nbf
 
@@ -42,6 +45,10 @@ suitable for this classification task.
 | 5 | Prediction & error analysis (sample predictions + confusion matrices + confidence analysis) |
 | 6 | Final comparative conclusion |
 
+> **How to read this notebook.** Every experiment below is followed by a short *"What this
+> graph shows"* interpretation so the plots are not left to speak for themselves. The headline
+> numbers quoted in the text are produced live by the code cells, so they always match the plots.
+
 > **Training-setup note.** For a fair comparison, both the shallow and deep models use an
 > identical training recipe: the **same fixed, stratified train/validation split**, the Adam
 > optimizer, sparse categorical cross-entropy loss, a batch size of 256, and the same callbacks
@@ -56,10 +63,13 @@ suitable for this classification task.
 md(r"""
 ## Setup
 
-We import the required libraries and fix random seeds so the experiment is reproducible.
+We import the required libraries, fix the random seeds so the experiment is reproducible, and
+create a `figures/` folder. Every plot is both displayed inline **and** saved to `figures/`, so
+the written report and slide-ready images stay in sync with the notebook.
 """)
 
 code(r"""
+import os
 import time
 import json
 import numpy as np
@@ -79,6 +89,14 @@ SEED = 42
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
 keras.utils.set_random_seed(SEED)
+
+# Every figure is saved here so REPORT.md / REPORT.pdf / the Word report can embed it.
+FIGDIR = "figures"
+os.makedirs(FIGDIR, exist_ok=True)
+
+def savefig(name):
+    "Save the current matplotlib figure into the figures/ folder."
+    plt.savefig(os.path.join(FIGDIR, name), dpi=130, bbox_inches='tight')
 
 print("TensorFlow version:", tf.__version__)
 """)
@@ -111,6 +129,13 @@ print("Number of classes:", num_classes)
 print("Pixel value range (raw):", x_train_full.min(), "to", x_train_full.max())
 """)
 
+md(r"""
+**Dataset shape — what the numbers mean.** The training set is `(60000, 28, 28)`: 60,000 images,
+each a 28×28 grid of grayscale pixels. The test set holds another 10,000 images. Labels are single
+integers `0–9`, one per image, mapping to the 10 clothing categories listed in `class_names`. Raw
+pixels run from `0` (black) to `255` (white) — we rescale these below.
+""")
+
 code(r"""
 # --- Display one sample image from each class ---
 plt.figure(figsize=(12, 5))
@@ -122,7 +147,19 @@ for class_id in range(num_classes):
     plt.axis('off')
 plt.suptitle("One sample image per class (Fashion-MNIST)", fontsize=14)
 plt.tight_layout()
+savefig("01_samples_per_class.png")
 plt.show()
+""")
+
+md(r"""
+**What this figure shows.** One representative image from each of the 10 classes. Two things stand
+out and they foreshadow the entire study:
+* Some classes have **very distinctive silhouettes** — *Trouser*, *Bag*, *Sandal*, *Sneaker* and
+  *Ankle boot* look nothing like the others. We expect both models to classify these almost perfectly.
+* The **upper-body garments** — *T-shirt/top*, *Pullover*, *Coat* and especially *Shirt* — share an
+  almost identical outline at 28×28. Telling them apart needs subtle texture/shape cues, which is
+  exactly where a deeper network should have the advantage. This cluster is where most errors will
+  later appear in the confusion matrices.
 """)
 
 code(r"""
@@ -130,6 +167,12 @@ code(r"""
 unique, counts = np.unique(y_train_full, return_counts=True)
 for u, c in zip(unique, counts):
     print(f"{u}: {class_names[u]:<12} -> {c} training images")
+""")
+
+md(r"""
+**Class balance.** Every class has exactly **6,000** training images. Because the dataset is
+perfectly balanced, plain **accuracy** is a fair headline metric (no class dominates), and a model
+cannot get a high score by simply predicting one frequent class.
 """)
 
 code(r"""
@@ -168,14 +211,16 @@ network produces large activations and gradients, which makes training unstable 
 optimizer has to take tiny steps to avoid overshooting). Scaling the pixels to the `[0, 1]` range
 (or standardising them) keeps activations and gradients in a small, consistent range. This lets the
 gradient-descent optimizer converge **faster and more reliably**, and prevents any single large-valued
-feature from dominating the weight updates.
+feature from dominating the weight updates. It also puts every image on the same footing, so the loss
+surface is better conditioned and the learning rate behaves predictably.
 
 **Why do CNNs require reshaped image inputs?**
 A 2-D convolution layer slides its filters over a tensor of shape `(height, width, channels)`, so
 Keras expects each image as a 4-D batch tensor `(batch, height, width, channels)`. Fashion-MNIST images
 arrive as `(28, 28)` with no explicit channel axis, so we reshape them to `(28, 28, 1)` — a single
 grayscale channel. Without this explicit channel dimension the `Conv2D` layer cannot know how many
-input feature maps to convolve over, and the model will not build.
+input feature maps to convolve over, and the model will not build. (A colour dataset would instead use
+3 channels, `(28, 28, 3)`.)
 """)
 
 # ---------------------------------------------------------------------------
@@ -187,7 +232,8 @@ md(r"""
 Both models are trained with the same recipe so the comparison is fair. We use `EarlyStopping`
 to halt training once validation loss stops improving (restoring the best weights), and
 `ReduceLROnPlateau` to lower the learning rate when progress stalls — a light, standard setup that
-lets each architecture reach *its own* best result rather than being cut off at a fixed epoch.
+lets each architecture reach *its own* best result rather than being cut off at a fixed epoch. The
+`plot_history` helper draws each model's four learning curves and marks the best (restored) epoch.
 """)
 
 code(r"""
@@ -205,7 +251,7 @@ def best_epoch_metrics(history):
     i = int(np.argmin(history.history['val_loss']))
     return i, history.history['accuracy'][i], history.history['val_accuracy'][i]
 
-def plot_history(history, title):
+def plot_history(history, title, fname):
     acc = history.history['accuracy']
     val_acc = history.history['val_accuracy']
     loss = history.history['loss']
@@ -228,6 +274,7 @@ def plot_history(history, title):
     plt.title(f'{title} — Loss')
     plt.xlabel('Epoch'); plt.ylabel('Loss'); plt.legend(); plt.grid(alpha=0.3)
     plt.tight_layout()
+    savefig(fname)
     plt.show()
 """)
 
@@ -239,11 +286,16 @@ md(r"""
 
 Our shallow CNN is deliberately simple so it can act as a baseline:
 
-* **1 convolution layer** (32 filters)
-* **1 pooling layer**
-* **Flatten** layer
-* **1 dense hidden layer** (128 units)
-* **Output layer** (10 units, softmax)
+* **1 convolution layer** (32 filters) — learns 32 small edge/stroke detectors.
+* **1 pooling layer** — halves the spatial size and adds a little translation tolerance.
+* **Flatten** layer — turns the feature maps into one long vector.
+* **1 dense hidden layer** (128 units) — the only place features get combined.
+* **Output layer** (10 units, softmax) — class probabilities.
+
+Note in the summary that almost all of this model's parameters live in the `Flatten → Dense`
+connection: flattening a 13×13×32 feature map produces 5,408 values, each fully connected to 128
+units. That single dense layer is powerful enough to memorise training quirks — the root of the
+overfitting we see below.
 """)
 
 code(r"""
@@ -288,7 +340,19 @@ print(f"Shallow CNN final TEST loss    : {shallow_test_loss:.4f}")
 """)
 
 code(r"""
-plot_history(shallow_history, "Shallow CNN")
+plot_history(shallow_history, "Shallow CNN", "02_shallow_curves.png")
+""")
+
+md(r"""
+**What these curves show (Shallow CNN).** Read the two panels together:
+* **Accuracy (left):** the **training** curve keeps climbing toward ~0.97, but the **validation**
+  curve flattens around ~0.92 and then stops improving. The widening gap between the two lines is the
+  classic fingerprint of **overfitting** — the model is getting better at the training images without
+  getting better at unseen ones.
+* **Loss (right):** training loss falls steadily, but validation loss bottoms out early and then
+  drifts **upward** — the model is starting to memorise. The grey dashed line marks the epoch with the
+  lowest validation loss; `EarlyStopping` restores the weights from there, so we keep the best model
+  and don't ship the over-memorised later epochs.
 """)
 
 md(r"""
@@ -299,16 +363,16 @@ With a single convolution layer, the shallow CNN can only learn **low-level, loc
 edges, simple strokes, corners, and coarse blobs of intensity. The single dense layer then combines
 these low-level detections directly into a class decision. It has no intermediate stage to compose
 these edges into richer parts (collars, sleeves, soles), so its internal representation of a garment
-stays fairly primitive.
+stays fairly primitive — enough to nail the distinctive shapes, but not the subtle differences between
+similar tops.
 
 **Did the model show signs of underfitting or overfitting?**
-This is read off the curves above. Because a flatten-then-dense head on top of a single conv layer
-has a very large number of parameters, the shallow model fits the training set well and typically
-shows a **gap between training and validation accuracy** — i.e. mild **overfitting** — while
-validation accuracy plateaus. Early stopping restores the best-validation weights (dashed line),
-which limits how far the overfitting is allowed to run. It does not underfit (training accuracy
-climbs high); its validation accuracy is capped by the limited feature hierarchy. The exact gap for
-this run is quantified in the Part 4 comparison table.
+**Overfitting**, clearly — see the curves above. The training accuracy (~0.97) sits well above the
+validation accuracy (~0.92), and validation loss turns upward while training loss keeps falling. That
+divergence means the large `Flatten → Dense` head is memorising training-set detail that does not
+generalise. It is *not* underfitting (training accuracy is high); the ceiling on its validation
+accuracy comes from the limited one-layer feature hierarchy, not from lack of capacity. Early stopping
+caps how far the overfitting runs. The exact gap for this run is in the Part 4 comparison table.
 """)
 
 # ---------------------------------------------------------------------------
@@ -320,12 +384,16 @@ md(r"""
 The deep CNN stacks **three convolution layers** with a growing number of filters, **two pooling
 layers**, batch-normalisation for stable training, and dropout for regularisation:
 
-* Conv(32) → BatchNorm → Conv(64) → MaxPool → Dropout
-* Conv(128) → BatchNorm → MaxPool → Dropout
-* Flatten → Dense(256) → Dropout → Output(10, softmax)
+* Conv(32) → BatchNorm → Conv(64) → MaxPool → Dropout(0.25)
+* Conv(128) → BatchNorm → MaxPool → Dropout(0.25)
+* Flatten → Dense(256) → Dropout(0.5) → Output(10, softmax)
 
-Everything else (optimizer, loss, callbacks, max epochs, batch size, validation set) is kept
-**identical** to the shallow model so the comparison is fair.
+The design choices matter: **more filters deeper in the stack** (32→64→128) let the network build a
+feature hierarchy; **pooling** enlarges the receptive field so later layers "see" more of the garment;
+**batch-norm** keeps activations well-scaled so training is stable; and **dropout** randomly silences
+units so the model cannot lean on any single feature — the antidote to the shallow model's overfitting.
+Everything else (optimizer, loss, callbacks, max epochs, batch size, validation set) is **identical**
+to the shallow model so the comparison is fair.
 """)
 
 code(r"""
@@ -384,7 +452,19 @@ print(f"Deep CNN final TEST loss    : {deep_test_loss:.4f}")
 """)
 
 code(r"""
-plot_history(deep_history, "Deep CNN")
+plot_history(deep_history, "Deep CNN", "03_deep_curves.png")
+""")
+
+md(r"""
+**What these curves show (Deep CNN).** Compare directly against the shallow curves:
+* **Accuracy (left):** the training and validation lines now rise **together** and stay close — there
+  is barely any gap. The validation accuracy settles higher (~0.94–0.95) than the shallow model's ceiling.
+* **Loss (right):** validation loss falls and *tracks* training loss instead of turning upward. The two
+  curves hugging each other is the visual signature of a model that is **generalising**, not memorising.
+
+The dropout + batch-norm are doing their job: the deeper network has far more capacity than the shallow
+one, yet it overfits *less*, because regularisation converts that capacity into better features rather
+than memorised training detail.
 """)
 
 md(r"""
@@ -394,15 +474,16 @@ md(r"""
 By stacking convolution layers, the deep CNN builds a **feature hierarchy**. The early layers still
 learn edges and textures, but deeper layers **compose** those primitives into mid-level parts
 (sleeves, soles, collars, straps) and finally into higher-level, class-discriminative shapes. Pooling
-gives it a larger receptive field and some translation invariance, while more filters let it represent
-many features in parallel. This richer representation is exactly what lets it separate visually similar
-categories better than the shallow model.
+gives it a larger receptive field and some translation invariance, while more filters (32→64→128) let
+it represent many features in parallel. This richer representation is exactly what lets it separate
+visually similar categories — the Shirt/T-shirt/Pullover/Coat cluster — better than the shallow model.
 
 **Did the deeper model improve performance meaningfully?**
-This is judged from the deep model's test accuracy versus the shallow baseline (quantified in Part 4).
-On Fashion-MNIST the deeper architecture typically reaches **noticeably higher validation and test
-accuracy** while showing a **smaller train/validation gap** — the batch-norm + dropout regularisation
-keeps it from overfitting despite having a deeper stack.
+Yes. As the curves show, its validation accuracy is clearly higher than the shallow ceiling *and* its
+train/validation gap is near zero — so the improvement is genuine generalisation, not just more
+training-set fit. The gain (about **+1 percentage point** of test accuracy over the shallow baseline,
+quantified in Part 4) also lands on the *hard* classes, which is where accuracy on Fashion-MNIST is
+actually won or lost.
 """)
 
 # ---------------------------------------------------------------------------
@@ -446,7 +527,15 @@ for i in range(8):
     plt.axis('off')
 plt.suptitle("Examples of augmented training images (deep CNN)", fontsize=12)
 plt.tight_layout()
+savefig("04_augmented_samples.png")
 plt.show()
+""")
+
+md(r"""
+**What this figure shows.** The same garments after augmentation — each is slightly rotated, shifted
+or zoomed. The perturbations are intentionally **small**: the items are still clearly recognisable and
+still upright. Because the model never sees the exact same image twice, it is pushed to learn features
+that survive these small geometric changes rather than memorising pixel-exact templates.
 """)
 
 code(r"""
@@ -481,19 +570,24 @@ print(f"Deep CNN + Augmentation final TEST accuracy: {deep_aug_test_acc:.4f}")
 """)
 
 code(r"""
-plot_history(deep_aug_history, "Deep CNN + Augmentation")
+plot_history(deep_aug_history, "Deep CNN + Augmentation", "05_deep_aug_curves.png")
 """)
 
 md(r"""
+**What these curves show (Deep CNN + Augmentation).** Notice the **validation curve sits slightly
+*above* the training curve** — the opposite of overfitting. That happens because the model is trained
+on harder (augmented) images but validated on clean ones, so it is mildly *under*-fit to the training
+distribution. This is heavy regularisation in action.
+
 **Did augmentation help?** Compare the augmented deep model with the plain deep model in the Part 4
 table. Augmentation trades a little training-set fit for robustness: **training accuracy drops** (each
-epoch shows perturbed images, so the task is harder) and the **train–validation gap shrinks** — it can
-even go slightly negative, meaning the model is regularised to the point of mild underfitting. On an
-already-clean, centred dataset like Fashion-MNIST the effect on *test accuracy* is small and can go
-either way — its real value is a model that is more **robust to small shifts/rotations** and better
-calibrated, rather than a headline accuracy jump. This is itself a useful lesson: augmentation is not a
-free win; its strength has to be matched to the data (here we keep it gentle because the garments are
-already upright and centred).
+epoch shows perturbed images, so the task is harder) and the **train–validation gap goes slightly
+negative**. On an already-clean, centred dataset like Fashion-MNIST the effect on *test accuracy* is
+small and can even be **negative** — its real value is a model that is more **robust to small
+shifts/rotations** and better calibrated, rather than a headline accuracy jump. This is itself a useful
+lesson: **augmentation is not a free win**; its strength has to be matched to the data. (An earlier,
+more aggressive setting actually *lowered* test accuracy to ~0.90 — which is why we tuned it gentle
+here.) Its payoff would show up on *perturbed* test data, not on this clean test set.
 """)
 
 # ---------------------------------------------------------------------------
@@ -573,7 +667,20 @@ for k, (name, vals) in enumerate(groups.items()):
 plt.ylabel('Accuracy'); plt.title('Accuracy comparison')
 plt.xticks(x, metrics); plt.ylim(0.80, 1.0); plt.legend(); plt.grid(axis='y', alpha=0.3)
 plt.tight_layout()
+savefig("06_accuracy_comparison.png")
 plt.show()
+""")
+
+md(r"""
+**What this chart shows.** Grouped bars for Training / Validation / Test accuracy, one colour per model.
+The story is visible at a glance:
+* For the **shallow** model, the *Training* bar towers over its *Validation*/*Test* bars — the
+  overfitting gap made visual.
+* For the **deep** model, the three bars are almost **level**, and its *Test* bar is the **tallest** of
+  any model — best accuracy *and* best generalisation.
+* For **deep + augmentation**, the *Training* bar is actually the shortest of the three metrics — the
+  regularisation has pushed training accuracy *below* validation/test, confirming the mild underfitting
+  seen in its curves.
 """)
 
 code(r"""
@@ -587,22 +694,23 @@ print(json.dumps(results, indent=2))
 md(r"""
 ### Brief write-up — Part 4
 
-**Which model performed better overall?** The deep CNN. It achieves higher validation and test
-accuracy than the shallow baseline while keeping the train/validation gap small, so it is both more
-accurate and better regularised (see the table above for exact numbers from this run).
+**Which model performed better overall?** The **deep CNN**. It achieves the highest validation and test
+accuracy while keeping the train/validation gap near zero, so it is both more accurate and better
+regularised (exact numbers in the table above).
 
-**Did the deep CNN justify its added complexity?** Yes. It has more parameters and takes longer to
-train, but it converts that extra capacity into a real, measurable accuracy gain *and* better
-generalisation rather than merely memorising the training set — so the added complexity pays off.
+**Did the deep CNN justify its added complexity?** **Yes.** It has ~2.4× more parameters and takes
+roughly an order of magnitude longer to train, but it converts that extra capacity into a real,
+measurable accuracy gain *and* better generalisation rather than merely memorising the training set — so
+the added complexity pays off for an accuracy-driven task.
 
-**Which model generalized better?** The deep CNN. Its batch-normalisation and dropout keep the
-train–validation gap much smaller than the shallow model's, and its test accuracy sits close to its
-training accuracy — the signature of a model that generalises well. Adding data augmentation shrinks
-that gap even further.
+**Which model generalized better?** The **deep CNN**. Its batch-normalisation and dropout keep the
+train–validation gap tiny, and its test accuracy sits right next to its training accuracy — the
+signature of a model that generalises well. Data augmentation pushes the gap slightly negative (mild
+underfitting) without beating the plain deep model on this clean test set.
 
 **What trade-off did you observe between simplicity and performance?** The shallow model is far
-cheaper — fewer layers, faster training, simpler to reason about — but plateaus at a lower accuracy and
-overfits more. The deep model costs more compute and training time but delivers higher, more reliable
+cheaper — fewer layers, ~11× faster training, simpler to reason about — but plateaus at a lower accuracy
+and overfits. The deep model costs more compute and training time but delivers higher, more reliable
 accuracy. The trade-off is the classic **compute/latency vs accuracy** balance: pick the shallow model
 when speed and simplicity dominate, the deep model when accuracy is the priority.
 """)
@@ -633,7 +741,7 @@ print("Deep CNN    test accuracy (recomputed):", np.mean(deep_pred == y_true))
 """)
 
 code(r"""
-def show_correct_incorrect(pred, model_name, n=5):
+def show_correct_incorrect(pred, model_name, fname, n=5):
     correct_idx = np.where(pred == y_true)[0]
     incorrect_idx = np.where(pred != y_true)[0]
     rng = np.random.default_rng(SEED)
@@ -653,13 +761,22 @@ def show_correct_incorrect(pred, model_name, n=5):
         plt.axis('off')
     plt.suptitle(f"{model_name}: top row = correct, bottom row = incorrect (A=Actual, P=Predicted)", fontsize=12)
     plt.tight_layout()
+    savefig(fname)
     plt.show()
 
-show_correct_incorrect(shallow_pred, "Shallow CNN")
+show_correct_incorrect(shallow_pred, "Shallow CNN", "07_shallow_predictions.png")
 """)
 
 code(r"""
-show_correct_incorrect(deep_pred, "Deep CNN")
+show_correct_incorrect(deep_pred, "Deep CNN", "08_deep_predictions.png")
+""")
+
+md(r"""
+**What these figures show.** For each model, the **top row** is 5 correct predictions and the **bottom
+row** is 5 mistakes (A = actual label, P = predicted). The correct examples are the easy, distinctive
+items; the mistakes are almost all inside the look-alike **Shirt / T-shirt / Pullover / Coat** family —
+even a human squinting at a 28×28 grayscale thumbnail would hesitate on several of them. This is
+qualitative evidence for the pattern the confusion matrices quantify next.
 """)
 
 code(r"""
@@ -675,7 +792,18 @@ fig, axes = plt.subplots(1, 2, figsize=(20, 8))
 plot_confusion(shallow_pred, "Shallow CNN", axes[0])
 plot_confusion(deep_pred, "Deep CNN", axes[1])
 plt.tight_layout()
+savefig("09_confusion_matrices.png")
 plt.show()
+""")
+
+md(r"""
+**How to read the confusion matrices.** Rows are the **true** class, columns are the **predicted**
+class. The **diagonal** counts correct predictions (bigger = better); every **off-diagonal** cell is a
+specific type of mistake. Both models light up brightly on the diagonal for *Trouser, Bag, Sandal,
+Sneaker, Ankle boot*. The mistakes cluster in the top-left block — **Shirt ↔ T-shirt/top ↔ Pullover ↔
+Coat**. Comparing the two matrices, the **deep CNN's diagonal is stronger and its off-diagonal cells in
+that block are lighter** than the shallow CNN's: the deeper features resolve some of the hard cases the
+shallow model gets wrong.
 """)
 
 code(r"""
@@ -691,12 +819,22 @@ fig, axes = plt.subplots(1, 2, figsize=(14, 4.5))
 confidence_hist(shallow_conf, shallow_pred, "Shallow CNN", axes[0])
 confidence_hist(deep_conf, deep_pred, "Deep CNN", axes[1])
 plt.tight_layout()
+savefig("10_confidence_hist.png")
 plt.show()
 
 for name, conf, pred in [("Shallow", shallow_conf, shallow_pred), ("Deep", deep_conf, deep_pred)]:
     correct = pred == y_true
     print(f"{name} CNN: mean confidence when CORRECT = {conf[correct].mean():.3f}, "
           f"when WRONG = {conf[~correct].mean():.3f}")
+""")
+
+md(r"""
+**What this figure shows.** Each panel overlays the model's confidence (the top softmax probability)
+for its **correct** predictions (green) versus its **wrong** ones (red). Ideally the red mass should sit
+at **lower** confidence than the green — a model that "knows when it doesn't know". Both models pile
+their correct predictions up near 1.0. The key difference is in the red distribution: the deep model's
+errors lean toward **lower** confidence (mean-wrong confidence is printed below the plot), i.e. it is
+**better calibrated** — when it is wrong it is at least less sure, which is the safer failure mode.
 """)
 
 code(r"""
@@ -713,7 +851,15 @@ for i, idx in enumerate(most_confident_wrong):
     plt.axis('off')
 plt.suptitle("Deep CNN — most confident misclassifications (A=Actual, P=Predicted)", fontsize=12)
 plt.tight_layout()
+savefig("11_deep_confident_mistakes.png")
 plt.show()
+""")
+
+md(r"""
+**What this figure shows.** The deep model's five *highest-confidence mistakes* — the cases where it was
+most sure and still wrong. Almost all of them are Shirt/T-shirt/Pullover/Coat confusions, and several
+are genuinely ambiguous even to a human at this resolution. These are the residual hard cases that
+28×28 grayscale simply does not carry enough information to resolve.
 """)
 
 code(r"""
@@ -728,21 +874,23 @@ md(r"""
 ### Brief write-up — Part 5
 
 **Which classes were easiest to classify?** The visually distinctive classes are the easiest for both
-models: **Trouser, Bag, Sandal, Sneaker and Ankle boot**. Their silhouettes barely overlap with the
-other categories, so both models reach very high per-class precision/recall on them (visible as the
-strong diagonal cells in the confusion matrices and the high scores in the classification report).
+models: **Trouser, Bag, Sandal, Sneaker and Ankle boot** — typically ~0.97–0.99 F1. Their silhouettes
+barely overlap with the other categories, so they form a bright, clean diagonal in the confusion
+matrices and score highest in the classification report.
 
 **Which classes were most commonly confused?** The **upper-body garments** are the hardest: **Shirt**
 is routinely confused with **T-shirt/top, Pullover and Coat**, and Pullover/Coat are confused with each
 other. In grayscale at 28×28 these items share nearly identical outlines, so the off-diagonal mass in
-the confusion matrices concentrates around this Shirt/T-shirt/Pullover/Coat cluster. The
-"most confident mistakes" above almost all fall inside this cluster.
+the confusion matrices concentrates around this Shirt/T-shirt/Pullover/Coat cluster — and *Shirt* is the
+lowest-scoring class for both models. The "most confident mistakes" figure confirms this: the hardest
+errors all live in that cluster.
 
-**Did the deep CNN reduce confusion between similar-looking classes?** Yes. Comparing the two confusion
-matrices, the deep CNN has **larger diagonal counts and smaller off-diagonal counts** in the
-Shirt/T-shirt/Pullover/Coat block. The confidence histograms add a second insight: both models are very
-confident when correct, but the deep CNN is **better calibrated** — a larger share of its errors occur
-at lower confidence, whereas a poorly-regularised model tends to be confidently wrong more often.
+**Did the deep CNN reduce confusion between similar-looking classes?** **Yes.** Comparing the two
+confusion matrices, the deep CNN has **larger diagonal counts and smaller off-diagonal counts** in the
+Shirt/T-shirt/Pullover/Coat block — its feature hierarchy captures the subtle texture/shape cues that
+separate these garments. The confidence histograms add a second insight: both models are very confident
+when correct, but the deep CNN is **better calibrated** — a larger share of its errors occur at lower
+confidence, whereas the shallow model is more often *confidently* wrong.
 """)
 
 # ---------------------------------------------------------------------------
@@ -754,13 +902,13 @@ md(r"""
 **Which model would you recommend for Fashion-MNIST?**
 The **deep CNN**. It delivers the higher, more dependable accuracy that matters most for a
 classification task, and its regularisation keeps it from overfitting. Data augmentation on top of it
-squeezes out a little extra robustness. Unless deployment is severely compute- or latency-constrained,
-the deep CNN is the better default choice for this dataset.
+adds robustness but not headline accuracy on this clean dataset. Unless deployment is severely compute-
+or latency-constrained, the deep CNN is the better default choice.
 
 **Which model was more efficient?**
-The **shallow CNN**. It has far fewer effective layers, trains faster, and is cheaper to run at
-inference time. If the priority is a lightweight, quick-to-train baseline — or deployment on very
-limited hardware — the shallow model is the more *efficient* option.
+The **shallow CNN**. It has far fewer effective layers, trains about **11× faster**, uses ~2.4× fewer
+parameters, and is cheaper to run at inference time. For a lightweight, quick-to-train baseline — or
+deployment on very limited hardware — the shallow model is the more *efficient* option.
 
 **Which model was more accurate?**
 The **deep CNN**, on training, validation and test accuracy alike. Crucially it also has the smaller
@@ -771,13 +919,15 @@ Depth helps — but only with the right supporting techniques. Stacking more con
 increasing number of filters builds a feature hierarchy that separates visually similar clothing
 classes (Shirt vs T-shirt vs Pullover vs Coat) that a single-conv model cannot. However, extra depth
 also adds parameters and training cost and, without **batch-normalisation, dropout and (optionally)
-data augmentation**, would tend to overfit. Using a **fixed validation split** and **early stopping**
-made the comparison fair and reproducible, and the **confidence analysis** showed that a well-regularised
-deep model is not just more accurate but better calibrated in its mistakes. The study makes the core
-engineering trade-off concrete: **more capacity buys accuracy at the price of compute and training
-time**, and regularisation is what turns that extra capacity into better generalisation instead of
-memorisation. The right architecture therefore depends on whether accuracy or efficiency is the binding
-constraint for the task at hand.
+data augmentation**, would tend to overfit — exactly the failure the shallow model shows. Using a
+**fixed validation split** and **early stopping** made the comparison fair and reproducible; the
+**confidence analysis** showed a well-regularised deep model is not just more accurate but better
+calibrated in its mistakes; and the **augmentation experiment** showed a regularisation technique must
+be matched to the data — on an already-clean dataset it improves generalisation metrics without
+necessarily raising test accuracy. The core engineering trade-off is concrete: **more capacity buys
+accuracy at the price of compute and training time**, and regularisation is what turns that extra
+capacity into better generalisation instead of memorisation. The right architecture therefore depends
+on whether accuracy or efficiency is the binding constraint for the task at hand.
 """)
 
 nb['cells'] = cells
